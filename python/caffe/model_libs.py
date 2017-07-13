@@ -815,6 +815,7 @@ def CreateMultiBoxHead(net, data_layer="data", num_classes=[], from_layers=[],
     priorbox_layers = []
     loc_layers = []
     conf_layers = []
+    key_points_layers = []
     objectness_layers = []
     for i in range(0, num):
         from_layer = from_layers[i]
@@ -884,6 +885,17 @@ def CreateMultiBoxHead(net, data_layer="data", num_classes=[], from_layers=[],
         flatten_name = "{}_flat".format(name)
         net[flatten_name] = L.Flatten(net[permute_name], axis=1)
         conf_layers.append(net[flatten_name])
+        
+         # Create key points prediction layer.
+        name = "{}_mbox_key_points{}".format(from_layer, key_points_postfix)
+        num_key_points_output = num_priors_per_location * 166;
+        ConvBNLayer(net, from_layer, name, use_bn=use_batchnorm, use_relu=False, lr_mult=lr_mult,
+            num_output=num_key_points_output, kernel_size=kernel_size, pad=pad, stride=1, **bn_param)
+        permute_name = "{}_perm".format(name)
+        net[permute_name] = L.Permute(net[name], order=[0, 2, 3, 1])
+        flatten_name = "{}_flat".format(name)
+        net[flatten_name] = L.Flatten(net[permute_name], axis=1)
+        key_points_layers.append(net[flatten_name])
 
         # Create prior generation layer.
         name = "{}_mbox_priorbox".format(from_layer)
@@ -921,6 +933,9 @@ def CreateMultiBoxHead(net, data_layer="data", num_classes=[], from_layers=[],
     mbox_layers.append(net[name])
     name = "mbox_conf"
     net[name] = L.Concat(*conf_layers, axis=1)
+    mbox_layers.append(net[name])
+    name = "mbox_key_points"
+    net[name] = L.Concat(*key_points_layers, axis=1)
     mbox_layers.append(net[name])
     name = "mbox_priorbox"
     net[name] = L.Concat(*priorbox_layers, axis=2)
